@@ -1,0 +1,111 @@
+---
+title: "Bernardo Imianovsky"
+format: html
+editor: visual
+---
+
+```{r}
+#| label: load-packages
+#| include: false
+
+# Instale e carregue os pacotes (se necessário)
+# install.packages("GetBCBData")
+# install.packages("tidyverse")
+# install.packages("gganimate")
+# install.packages("gifski") # Certifique-se de ter o gifski para o renderer
+
+library(GetBCBData)
+library(tidyverse)
+library(gganimate)
+library(gifski) # Carregar para o renderer
+```
+
+## Gráfico com Corte Temporal
+
+A saúde financeira de um país é multifacetada, e um dos indicadores cruciais para avaliar sua solidez e vulnerabilidade externa é a Dívida Líquida do Setor Público (DLSP) Externa. Esse indicador, monitorado de perto por instituições como o Banco Central do Brasil, reflete a diferença entre os ativos e passivos em moeda estrangeira do Governo Federal e do Banco Central. Em termos mais simples, ele nos diz se o país é, em balanço, um credor ou um devedor frente ao resto do mundo em transações com moeda estrangeira. Um valor negativo, por exemplo, indica que o Brasil possui mais reservas e outros ativos externos do que dívidas em moeda estrangeira, conferindo maior 'colchão' financeiro e resiliência a choques globais. Ao longo das últimas duas décadas, a trajetória da Dívida Líquida Externa do Brasil tem sido um espelho das transformações econômicas, das políticas macroeconômicas adotadas e dos desafios enfrentados pelo país em cenários domésticos e globais.
+
+-   **De 2000 a meados de 2006:** O país saiu de uma posição de devedor líquido para se tornar um credor líquido em moeda estrangeira. Este período foi marcado por forte acumulação de reservas cambiais e políticas macroeconômicas favoráveis.
+
+-   **De 2006 a 2012/2013:** O Brasil consolidou sua posição de credor líquido externo, atingindo seu pico de ativos (menor dívida líquida) por volta de 2012-2013, com valores abaixo de -R\$ 400 bilhões.
+
+-   **A partir de 2013:** Observa-se uma reversão clara na tendência. A posição de credor líquido se deteriorou progressivamente, com a dívida líquida externa aumentando de forma acentuada. Em 2020 devido aos impactos da pandemia, atingimos o maior nível de endividamento líquido externo na série, superando -R\$ 1.300 bilhões.
+
+-   **Nos anos mais recentes (pós-2020):** O gráfico sugere uma recuperação parcial e alguma estabilização, mas a dívida líquida externa ainda se mantém em patamares elevados quando comparada ao início da série.
+
+```{r}
+#| label: corte temporal
+#| warning: false
+#| echo: false
+
+# 1. Definição da Série do Banco Central e Obtenção dos Dados
+# ---
+my_id <- c("4490 - Dívida Líquida do Setor Público – Saldos em R$ milhões – Externa – Governo Federal e Banco Central" = 4490)
+
+df_bcb <- gbcbd_get_series(id = my_id,
+                           first.date = '2000-01-01',
+                           last.date = Sys.Date(),
+                           format.data = 'long',
+                           use.memoise = TRUE,
+                           cache.path = tempdir(),
+                           do.parallel = FALSE)
+
+# ---
+# 2. Manipulação dos Dados com `tidyverse` e Criação do Gráfico Animado
+# ---
+df_bcb_processed <- df_bcb %>%
+  rename(data = ref.date)
+
+# Função customizada para formatar os rótulos do eixo Y (inalterada)
+format_reais_milhoes <- function(x) {
+  paste0("R$ ", formatC(x, format = "f", digits = 0, big.mark = ".", decimal.mark = ","))
+}
+
+p_animated <- ggplot(df_bcb_processed, aes(x = data, y = value)) +
+  geom_line(color = "red", size = 1) +
+  labs(
+    title = 'Dívida Líquida do Setor Público',
+    subtitle = 'Externa – Governo Federal e Banco Central - Ano: {format(as.Date(frame_along), "%Y")}',
+    x = '',
+    y = 'Dívida em R$ milhões',
+    caption = paste0("Fonte: Banco Central do Brasil - Série 4490\nPeríodo: ",
+                     format(min(df_bcb_processed$data), "%d/%m/%Y"), ' a ',
+                     format(max(df_bcb_processed$data), "%d/%m/%Y"))
+  ) +
+  scale_y_continuous(
+    labels = format_reais_milhoes,
+    breaks = unique(c(seq(-1400000, 200000, by = 250000), 0)) # Garante que 0 esteja nos breaks
+  ) +
+  scale_x_date(
+    date_breaks = "2 years",
+    date_labels = "%Y",
+    expand = expansion(mult = c(0.01, 0.01))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 20),
+    plot.subtitle = element_text(hjust = 0.5, size = 16, color = "gray30", margin = margin(b = 15)),
+    axis.title.y = element_text(face = "bold", size = 14, margin = margin(r = 15)),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(size = 12, angle = 45, hjust = 1, vjust = 1),
+    panel.grid.major = element_line(color = "gray85", linetype = "dotted", size = 0.3),
+    panel.grid.minor = element_line(color = "gray95", linetype = "dotted", size = 0.2),
+    # Não há mais geom_hline(yintercept = 0) aqui
+    plot.caption = element_text(hjust = 0.99, size = 10, color = "gray50", margin = margin(t = 10)),
+    plot.margin = margin(t = 20, r = 20, b = 10, l = 20)
+  ) +
+  transition_reveal(data) +
+  ease_aes('linear')
+
+# --- Renderizar a Animação e Exibir no Viewer ---
+animation_duration_seconds <- 20
+pause_duration_seconds <- 15
+my_fps <- 10
+
+animate(p_animated,
+        fps = my_fps,
+        duration = animation_duration_seconds + pause_duration_seconds,
+        end_pause = pause_duration_seconds * my_fps,
+        height = 1200, width = 1600, units = "px", res = 200)
+```
+
+Em suma, a dinâmica da dívida líquida externa do Brasil é um reflexo direto da saúde de sua balança de pagamentos, da eficácia de sua política cambial e da capacidade de atração e retenção de investimentos estrangeiros. As flutuações observadas ao longo das últimas duas décadas não são meros números; elas são cruciais para entender a evolução da vulnerabilidade externa do Brasil e sua resiliência frente a crises, moldando a percepção dos investidores e a capacidade do país de financiar seu desenvolvimento.
